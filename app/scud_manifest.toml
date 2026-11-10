@@ -1,0 +1,12 @@
+# ReXGlue recompilation manifest for Scud Race (wanszai's Xbox 360 build 0.0.17, default.xex).
+# `rexglue codegen scud_manifest.toml` (from app/). Generated code goes to generated/default (scud_*).
+[project]
+name = "scud"
+sdk_version = "0.10.0"
+game_root = "../assets/game_root"
+
+[entrypoint]
+file_path = "../assets/game_root/default.xex"
+out_directory_path = "generated/default"
+
+includes = ["scud_map.toml", "scud_overrides.toml", "codegen_flavor.toml", "nvl_game.toml"]

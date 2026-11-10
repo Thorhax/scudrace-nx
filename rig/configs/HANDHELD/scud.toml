@@ -1,0 +1,5 @@
+log_level = "info"
+scud_hitch_log_ms = 45
+banjo_renut_stats_1s = true
+scud_sim_gpu_mhz = 460
+scud_sim_emc_khz = 1331200

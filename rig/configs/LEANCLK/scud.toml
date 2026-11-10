@@ -1,0 +1,4 @@
+log_level = "info"
+scud_hitch_log_ms = 45
+banjo_renut_stats_1s = true
+scud_clock_log = true

@@ -1,0 +1,146 @@
+// scudrace-nx (2026-11-06): r3d_d3d9's ps3d9_core (the game's HLSL, in default.xex: "#if defined(R3D_PS)") by hand for
+// deko3d. ps3d9o (R3D_KILL 0, ps_FD5D018F1474A584: the opaque 3D, ~10.8 ms of the GPU's frame in a race) and ps3d9
+// (R3D_KILL 1, ps_CD0F7080E288829E). The same words and the same decode as the HLSL; the sheet path's address arithmetic
+// (SM3's floats standing for D3D11's integers: wraps, mirrors, mip origins, the 16-bit texel's fields) in integers, the
+// sheet read by texelFetch. tools/gen_ps3d9_native.py puts this between each translation's header and tail.
+// (as the HLSL: tex2Dlod at the texel's centre, normalised: 1 / 2048 across, p_atl.z (or 1 / 2048) down)
+uint r3d_word(ivec2 p)
+{
+    float ih = g_UboPixel.v[7u].z > 0.0 ? g_UboPixel.v[7u].z : 1.0 / 2048.0;
+    vec4 s = textureLod(dk_tex_b0, (vec2(p) + 0.5) * vec2(1.0 / 2048.0, ih), 0.0);
+    return uint(floor(s.x * 255.0 + 0.5)) + (uint(floor(s.w * 255.0 + 0.5)) << 8u);
+}
+// wrapc on one lane: i in a texture of size sz (log2 lsz when a power of two), mirrored on odd periods when mir
+int r3d_wrap(int i, int sz, int lsz, bool pow2, bool mir)
+{
+    int q, u;
+    if (pow2) { q = i >> lsz; u = i & (sz - 1); }
+    else { q = int(floor(float(i) / float(sz))); u = i - q * sz; }
+    return (mir && (q & 1) != 0) ? sz - 1 - u : u;
+}
+int r3d_log2(int v) { return findMSB(v); }
+// bilin4: level lv's bilinear footprint of the texture ti (x, y, w, h), flags tf (y / z mirror, w contour), format fmt
+vec4 r3d_bilin(int lv, vec2 uv, ivec4 ti, vec4 tf, int fmt)
+{
+    float ip = 1.0 / float(1 << lv);
+    vec2 f = uv * ip - 0.5; vec2 bf = floor(f); vec2 a = f - bf;
+    ivec2 b = ivec2(bf);
+    int w = max(ti.z >> lv, 1), h = max(ti.w >> lv, 1);
+    bool pw = (w & (w - 1)) == 0, ph = (h & (h - 1)) == 0;
+    int lw = r3d_log2(w), lh = r3d_log2(h);
+    bool mx = tf.y > 0.5, my = tf.z > 0.5;
+    int x0 = r3d_wrap(b.x, w, lw, pw, mx), x1 = r3d_wrap(b.x + 1, w, lw, pw, mx);
+    int y0 = r3d_wrap(b.y, h, lh, ph, my), y1 = r3d_wrap(b.y + 1, h, lh, ph, my);
+    int bx = 2048 - (2048 >> lv) + ((ti.x & 2047) >> lv);
+    int by = 1024 - (1024 >> lv) + ((ti.y & 1023) >> lv);
+    int rb = (ti.y >> 10) << 10;
+    int c0 = (bx + x0) & 2047, c1 = (bx + x1) & 2047;
+    int r0 = rb + ((by + y0) & 1023), r1 = rb + ((by + y1) & 1023);
+    uvec4 v;
+#if R3D_GATHER
+    if (c1 == c0 + 1 && r1 == r0 + 1) {
+        // the four texels side by side in the sheet: two gathers (L, A) at the corner they share. Gather order:
+        // (c0, r1), (c1, r1), (c1, r0), (c0, r0) -> c01, c11, c10, c00
+        float ih = g_UboPixel.v[7u].z > 0.0 ? g_UboPixel.v[7u].z : 1.0 / 2048.0;
+        vec2 uvg = vec2(float(c1) * (1.0 / 2048.0), float(r1) * ih);
+        uvec4 l = uvec4(floor(textureGather(dk_tex_b0, uvg, 0) * 255.0 + 0.5));
+        uvec4 h = uvec4(floor(textureGather(dk_tex_b0, uvg, 3) * 255.0 + 0.5));
+        uvec4 g = l + (h << 8u);
+        v = uvec4(g.w, g.z, g.x, g.y);
+    } else
+#endif
+    v = uvec4(r3d_word(ivec2(c0, r0)), r3d_word(ivec2(c1, r0)), r3d_word(ivec2(c0, r1)), r3d_word(ivec2(c1, r1)));
+    uvec4 hi = v >> 8u, lo = v & 255u;
+    uvec4 n0 = lo & 15u, n1 = lo >> 4u, n2 = hi & 15u, n3 = hi >> 4u;
+    vec4 R, G, B, A;
+    if (fmt > 7) {
+        uvec4 r = fmt == 8 ? n0 : (fmt == 9 ? n1 : (fmt == 10 ? n2 : n3));
+        R = vec4(r) / 15.0; G = R; B = R; A = vec4(notEqual(r, uvec4(15u)));
+    } else if (fmt == 0) {
+        R = vec4((v >> 10u) & 31u) / 31.0; G = vec4((v >> 5u) & 31u) / 31.0; B = vec4(v & 31u) / 31.0;
+        A = vec4(lessThan(v, uvec4(32768u)));
+    } else if (fmt == 1) { R = vec4(n0) / 15.0; G = R; B = R; A = vec4(n1) / 15.0; }
+    else if (fmt == 2) { A = vec4(n0) / 15.0; R = vec4(n1) / 15.0; G = R; B = R; }
+    else if (fmt == 3) { R = vec4(n2) / 15.0; G = R; B = R; A = vec4(n3) / 15.0; }
+    else if (fmt == 4) { A = vec4(n2) / 15.0; R = vec4(n3) / 15.0; G = R; B = R; }
+    else if (fmt == 5) { R = vec4(lo) / 255.0; G = R; B = R; A = vec4(notEqual(lo, uvec4(255u))); }
+    else if (fmt == 6) { R = vec4(hi) / 255.0; G = R; B = R; A = vec4(notEqual(hi, uvec4(255u))); }
+    else { R = vec4(n3) / 15.0; G = vec4(n2) / 15.0; B = vec4(n1) / 15.0; A = vec4(n0) / 15.0; }
+    if (tf.w > 0.5) {                                 // (the alpha test's contour: the texels' colour from the most opaque one)
+        vec4 m = vec4(R.x, G.x, B.x, A.x);
+        if (A.y > m.a) m = vec4(R.y, G.y, B.y, A.y);
+        if (A.z > m.a) m = vec4(R.z, G.z, B.z, A.z);
+        if (A.w > m.a) m = vec4(R.w, G.w, B.w, A.w);
+        bvec4 lt = lessThan(A, vec4(m.a));
+        R = mix(R, vec4(m.r), lt); G = mix(G, vec4(m.g), lt); B = mix(B, vec4(m.b), lt);
+    }
+    vec4 c00 = vec4(R.x, G.x, B.x, A.x), c10 = vec4(R.y, G.y, B.y, A.y), c01 = vec4(R.z, G.z, B.z, A.z), c11 = vec4(R.w, G.w, B.w, A.w);
+    return mix(mix(c00, c10, a.x), mix(c01, c11, a.x), a.y);
+}
+// atl: level l of a texture in the decoded atlas (the round-17 path, tf.x 2; the HLSL's floats as they are)
+vec4 r3d_atl(float l, vec2 m0, vec4 ti, vec4 ta, vec4 p_atl)
+{
+    float ip = exp2(-l);
+    vec2 org = l < 0.5 ? ti.xy : vec2(ta.z + 2.0 * l - 2.0 * ti.z * ip, ta.w);
+    return textureLod(dk_tex_b1, (org + m0 * ip) * p_atl.xy, 0.0);
+}
+
+void main()
+{
+    vec4 uvfs = DK_IN_in_var_TEXCOORD0, col = DK_IN_in_var_TEXCOORD1, lc = DK_IN_in_var_TEXCOORD2;
+    vec4 iti = DK_IN_in_var_TEXCOORD3, itf = DK_IN_in_var_TEXCOORD4, itg = DK_IN_in_var_TEXCOORD5;
+    vec4 cw = DK_IN_in_var_TEXCOORD6, ta = DK_IN_in_var_TEXCOORD7;
+    vec4 p_fog = g_UboPixel.v[0u], p_spe = g_UboPixel.v[1u], p_spr = g_UboPixel.v[2u], p_spc = g_UboPixel.v[3u];
+    vec4 p_spf = g_UboPixel.v[4u], p_fgr = g_UboPixel.v[5u], p_vpr = g_UboPixel.v[6u], p_atl = g_UboPixel.v[7u];
+    vec4 c = col; vec3 texrgb = vec3(1.0);
+    vec4 tf = itf;
+    vec2 dx = dFdx(uvfs.xy), dy = dFdy(uvfs.xy);      // (here, out of the branches: tf is the polygon's, the same in a quad)
+    float lod0 = 0.5 * log2(max(dot(dx, dx), dot(dy, dy)) + 1e-12);
+    if (itf.x > 1.5) {
+        float lod = clamp(lod0, 0.0, itg.w);
+        float l0 = floor(lod); float t = lod - l0;
+        vec2 q = floor(uvfs.xy * ta.xy), m0 = uvfs.xy - q * iti.zw;
+        vec2 odd = q - 2.0 * floor(q * 0.5), mir = step(vec2(0.5), itf.yz);
+        m0 = mix(m0, iti.zw - m0, greaterThan(mir * odd, vec2(0.5)));
+        vec4 tc = r3d_atl(l0, m0, iti, ta, p_atl);
+        if (t > 0.01 && l0 + 0.5 < itg.w) tc = mix(tc, r3d_atl(l0 + 1.0, m0, iti, ta, p_atl), t);
+#if R3D_KILL
+        if (itf.w > 0.5 && tc.a < 32.0 / 255.0) discard;
+#endif
+        if (itf.w < 0.5 && itg.y < 0.5) tc.a = 1.0;
+        c *= tc; texrgb = tc.rgb;
+    } else if (tf.x > 0.5) {
+        ivec4 ti = ivec4(floor(iti + 0.5));
+        vec4 tg = floor(itg + 0.5);
+        float lod = clamp(lod0, 0.0, tg.w);
+        float l0 = floor(lod); float t = lod - l0;
+        int fmt = int(tg.z);
+        vec4 tc = r3d_bilin(int(l0), uvfs.xy, ti, tf, fmt);
+        if (t > 0.01 && l0 < tg.w) tc = mix(tc, r3d_bilin(int(l0) + 1, uvfs.xy, ti, tf, fmt), t);
+#if R3D_KILL
+        if (tf.w > 0.5 && tc.a < 32.0 / 255.0) discard;
+#endif
+        if (tf.w < 0.5 && tg.y < 0.5) tc.a = 1.0;
+        c *= tc; texrgb = tc.rgb;
+    }
+#if R3D_KILL
+    if (c.a < 1.0 / 32.0) discard;
+#endif
+    float lf = 0.0;
+    if (p_spr.w > 0.0) {
+        vec2 ndc = cw.xy / cw.z;
+        vec2 px = vec2(p_vpr.x + (ndc.x * 0.5 + 0.5) * p_vpr.z, p_vpr.y + (0.5 - ndc.y * 0.5) * p_vpr.w);
+        float vz = cw.z;
+        vec2 q = (px - p_spe.xy) / p_spe.zw; float e = max(0.0, 1.0 - dot(q, q));
+        float en = (p_spr.x <= vz) ? 1.0 : 0.0; float rg = 0.0;
+        if (p_spr.y != 0.0) { float ax = abs(p_spr.y); float d = min(p_spr.x + ax - vz, 0.0); float tt = d / (1.0 + ax) - 1.0; rg = en / (tt * tt); }
+        float le = rg * e; lf = en * e;
+        if (lc.w >= 0.0) { vec3 L = lc.w + p_spc.rgb * le; if (p_spc.w > 0.0) L = min(L, vec3(1.0)); c.rgb = texrgb * lc.rgb * L; }
+    }
+    c.rgb = min(c.rgb + uvfs.w, vec3(1.0));
+    c.rgb = mix(c.rgb, p_fog.rgb + p_spf.rgb * p_spr.z * p_fgr.rgb * lf, clamp(uvfs.z, 0.0, 1.0));
+    if (itg.x < 0.5) c.a = 1.0;
+#if R3D_MIN
+    c = vec4(col.rgb, 1.0);  // measurement only (as the HLSL's ps3dmin): what the draws cost without the shading
+#endif
+    vec4 r3d_out = c;

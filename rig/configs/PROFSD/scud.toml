@@ -1,0 +1,3 @@
+log_level = "info"
+switch_profile_stacks = true
+scud_hitch_log_ms = 45

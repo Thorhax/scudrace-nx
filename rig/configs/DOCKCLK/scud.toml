@@ -1,0 +1,3 @@
+log_level = "info"
+scud_sim_gpu_mhz = 768
+scud_sim_emc_khz = 1600000

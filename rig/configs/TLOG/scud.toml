@@ -1,0 +1,6 @@
+log_level = "info"
+scud_hitch_log_ms = 45
+banjo_renut_stats_1s = true
+scud_clock_log = true
+scud_env = "M3_R3D_MT_SPIN=0;M3_DCOURSE_TEXASYNC=0"
+scud_time_log = true

@@ -1,0 +1,2 @@
+log_level = "info"
+scud_hitch_log_ms = 45

@@ -1,0 +1,5 @@
+# Rig test config: log to the SD card and over the network to the PC (rig/loglisten.py on port 28774).
+log_network = "@PC_IP@:28774"
+log_level = "info"
+renut_gpu_profile = 10.0
+banjo_renut_diag_gpu_shaders = true

@@ -1,0 +1,50 @@
+# Scud Race, Switch build: fixed settings compiled into the NRO (src/scud_app.h, BuiltInConfig), applied before the
+# player's scud.toml (which may still override any of them). From mk9-nx's mk9_switch_defaults.toml, game-independent
+# renderer settings only.
+# Renut's Direct3D-level renderer on deko3d (the Switch's own graphics API); no emulated Xenos GPU.
+sa2_renderer = "renut"
+renut_gpu_backend = "deko3d"
+sa2_renut_gamma_ramp = false
+sa2_render_height_handheld = 720
+sa2_render_height_docked = 720
+log_level = "info"
+log_to_file = true
+# The game writes scudrace.ini, NVRAM and its logs under game:\
+allow_game_relative_writes = true
+banjo_deko3d_alpha_spec = true  # the alpha test in the pipeline: no discard without it, depth tested first (GPU 19.8 -> 13.7 ms in a race, image checked)
+mk9_guest_sockets = true  # the game's own sockets: Scud Race's system link and online play (mk9-nx turned them off: MK9 had nothing to talk to)
+scud_gpu_2d = true  # the tilegen 2D layers on the GPU (the game's tg2d_draw) without its readback self-test: a whole core less in a race (render_pass_fast 44%), HUD checked on the console
+scud_env = "M3_R3D_MT_SPIN=0;M3_DCOURSE_TEXASYNC=0"  # the 3D workers block at once instead of spinning (3 cores, all busy in a race); JOYPOLIS's textures unpacked on the game thread (with its texture worker the renderer missed them: noise on pillars, flat white walls; PC, 2026-11-10); a scud.toml scud_env replaces this
+# renut-nx's renderer (merged 2026-11-03): its Switch defaults made for Banjo, back to the game's own picture. The
+# internal / dynamic resolution and SMAA find Banjo's composite shader only (Scud has its own: scud_render_height,
+# scud_dynamic_resolution); 1080 docked would draw the whole frame at 1080.
+banjo_renut_display_height_docked = 720
+banjo_renut_render_height_handheld = 720
+banjo_renut_render_height_docked = 720
+banjo_renut_dynamic_resolution = false
+banjo_renut_smaa = false
+banjo_deko3d_skin_once = false
+banjo_renut_fur_shells_percent = 100
+banjo_renut_portrait_fur_shells_percent = 100
+# renut-nx's whole-buffer draws: Scud's backend writes its vertex buffers anew every frame, so each draw's try proved
+# the whole buffer's pages and failed (PagesClean 82 % of the render thread, 12-15 fps for the first 10 s of a race).
+banjo_renut_whole_buffers = false
+# 2026-11-06: upload ring / stream cache chunks kept once made (the heap has 1.5 GB never handed out): each one made
+# again was a 32 MB allocation and its GPU mapping on the render thread, mid-frame (70-110 ms frames).
+banjo_renut_keep_chunks = true
+# Scud's textures take 200-270 MB of the 512 MB budget: banjo-nx's 384 MB reserve kept releasing them (and the next
+# scene made them again, with their uploads: an 80 ms frame mid-race).
+banjo_renut_textures_reserve_mb = 64
+# Upload ring chunks made at boot instead of at the first scene that needs them: Scud's attract -> menu switch made a
+# 32 MB and a 16 MB upload ring chunk mid-frame (70 + 100 ms frames).
+banjo_renut_spare_upload_mb = 48
+# Dynamic resolution (the 3D image's height only, the HUD stays sharp; src/scud_dynamic_res.cpp): steps down to 540 / 480
+# / 384 only while the GPU takes over 15 ms a frame. Docked the race start peaks at ~10 ms (Expert, 2026-11-09), so it
+# does not change there; it is for handheld's slower GPU clock. A change makes no long frame (forced test: 4 changes,
+# 0 frames over 45 ms).
+scud_dynamic_resolution = true
+# fiber_switch_scalar_only (dropped: no gain measured on the console, 2026-11-10; SDK change not in the build): the console dropped off the network (no ping) early in the second
+# PGO training race of a build with it on (2026-11-10 03:23); the first race of that build was fine and the PC's audio
+# dump matched with it off and on. SwitchToFiber would keep the vector registers out of each save / restore: only
+# coro.obj (m3_coro_yield / m3_coro_resume, no vector or float non-volatiles) and register-localised game code are on a
+# suspended fiber's stack (the sound drivers switch ~100k times a second; docs/scud-notes.md)

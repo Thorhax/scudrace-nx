@@ -1,0 +1,4 @@
+# Rig test config: log to the SD card and over the network to the PC (rig/loglisten.py on port 28774).
+log_network = "@PC_IP@:28774"
+log_level = "info"
+banjo_renut_whole_buffers = false

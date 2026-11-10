@@ -1,0 +1,5 @@
+# Rig test config: log to the SD card and over the network to the PC (rig/loglisten.py on port 28774).
+log_network = "@PC_IP@:28774"
+log_level = "info"
+scud_gpu_2d = true
+scud_env = "M3_R3D_MT_SPIN=0"

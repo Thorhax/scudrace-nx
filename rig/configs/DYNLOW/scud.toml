@@ -1,0 +1,6 @@
+log_level = "info"
+scud_hitch_log_ms = 45
+banjo_renut_stats_1s = true
+scud_dynamic_resolution = true
+scud_dynamic_gpu_ms = 8.0
+scud_dynamic_up_ms = 6.5

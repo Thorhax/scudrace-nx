@@ -1,0 +1,7 @@
+log_level = "info"
+scud_hitch_log_ms = 45
+banjo_renut_keep_chunks = true
+banjo_renut_textures_reserve_mb = 64
+banjo_renut_stats_1s = true
+renut_gpu_profile = 2.0
+banjo_renut_diag_gpu_shaders = true
