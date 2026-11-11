@@ -8,7 +8,7 @@
 # CMakeLists.mk9-reference.txt is mk9-nx's file, kept for the stages still to come (Renut on deko3d, the Switch NRO).
 
 cmake_minimum_required(VERSION 3.25)
-project(scud VERSION 1.0.0 LANGUAGES CXX)
+project(scud VERSION 1.0.1 LANGUAGES CXX)
 set(SCUD_VERSION "${PROJECT_VERSION}")
 
 set(CMAKE_CXX_STANDARD 23)

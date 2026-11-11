@@ -44,9 +44,11 @@ The first start after installing is a few seconds slower: the port keeps the men
 - **16:9:** OPTIONS > VIDEO SETTINGS > SCREEN in the game's own menu.
 - **Saving:** the game saves its options and records when you leave through EXIT, the quick menu's Exit game, or
   HOME > Close (the port lets the game save before it closes).
-- **Buttons:** by default the face buttons go by position, as on the Xbox 360 pad the game was made for (the bottom
-  button, B, confirms). Put `input_xbox_layout = false` in `scud.toml` to go by letter instead (A confirms, as in
-  other Switch games).
+- **Buttons:** the face buttons go by letter, as in other Switch games (A confirms, B goes back). Put
+  `input_xbox_layout = true` in `scud.toml` to go by position instead, as on the Xbox 360 pad the game was made for
+  (the bottom button, B, confirms; 1.0.0's default).
+- **Gear buttons:** buttons bound to single gears (Gear 1-4 in the game's controls menu, say Gear 2 on D-pad up) work
+  only with the gear shifting set to **H type**, the game's own rule: in sequential mode only shift up / down count.
 - Skip the Thorhax intro with any button after 3 seconds, or Minus + Plus at any time.
 
 ## Performance

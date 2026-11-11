@@ -7,6 +7,10 @@ renut_gpu_backend = "deko3d"
 sa2_renut_gamma_ramp = false
 sa2_render_height_handheld = 720
 sa2_render_height_docked = 720
+# Face buttons by letter (A confirms in the game's menus, B goes back), as in other Switch games. The SDK's default is by
+# position, as on the Xbox 360 pad (the bottom button, B, confirms): a tester found the menus' buttons flipped with it
+# (1.0.0). A scud.toml line input_xbox_layout = true brings the position layout back.
+input_xbox_layout = false
 log_level = "info"
 log_to_file = true
 # The game writes scudrace.ini, NVRAM and its logs under game:\
